@@ -17,6 +17,7 @@ CONSUMES_REF = dict(zip(range(9), [1, 0, 1, 1, 0, 0, 0, 1, 1]))
 def get_bam(sample, manifest):
     """
     Retrieves path to sample's bam file.
+    
     Args:
         sample: Sample to find the bam file for.
     
@@ -32,6 +33,7 @@ def get_bam(sample, manifest):
 def get_family_bams(manifest, sample_list, family_id):
     """
     Reads in all the alignment files for a family.
+    
     Args:
         manifest: Pandas DataFrame with family_id, sample_id, and path to bam or cram file for each sample.
         sample_list: List of IDs for each family member.
@@ -50,7 +52,9 @@ def get_family_bams(manifest, sample_list, family_id):
     
     
 def bp_overlap(s1: int, e1: int, s2: int, e2: int) -> int:
-    """simple utility to determine amount of overlap between 2 interval coordinates
+    """
+    Simple utility to determine amount of overlap between 2 interval coordinates
+    
     Args:
         s1 (int): start of interval 1
         e1 (int): end of interval 1
@@ -72,7 +76,8 @@ def count_indel_in_read(
     ve: int,
     slop: int = 1,
 ) -> int:
-    """count up inserted and deleted sequence in a read using the pysam cigartuples object.
+    """
+    Count up inserted and deleted sequence in a read using the pysam cigartuples object.
     a cigartuples object is a list of tuples -- each tuple stores a CIGAR operation as 
     its first element and the number of bases attributed to that operation as its second element.
     exact match is (0, N), where N is the number of bases that match the reference, insertions are
@@ -96,7 +101,6 @@ def count_indel_in_read(
     
     # loop over the cigartuples object, operation by operation
     for op, bp in ct:
-#         print(op, bp)
         # check if this operation type consumes reference sequence
         # if so, we'll keep track of the bp associated with the op
         # if not,
@@ -116,20 +120,14 @@ def count_indel_in_read(
             # given the number of consumable base pairs that have been encountered in the
             # iteration so far.
             op_s, op_e = cur_pos, cur_pos + max([1, op_length])
-#             print(op_s, op_e)
             # figure out the amount of overlap between this operation and our TR locus.
             # increment our counter of net CIGAR operations by this overlap.
             overlapping_bp = bp_overlap(op_s, op_e, vs - slop, ve + slop)
-#             print(overlapping_bp, vs, ve)
-#             print('#')
             if overlapping_bp > 0:
                   cigar_op_total += (bp * OP2DIFF[op])
-                  # below doesn't work, had to change after talking to TS 8/22
-#                 cigar_op_total += (op_length * OP2DIFF[op])
             # increment our current position counter regardless of whether the operation
             # overlaps our STR locus of interest
             cur_pos += op_length
-#             print(cigar_op_total)
             
     return cigar_op_total
     
@@ -140,7 +138,8 @@ def get_read_diff(
     min_mapq: int = 60,
     slop: int = 1,
 ) -> Union[None, int]:
-    """compare a single sequencing read to the reference. then, count up the net inserted/
+    """
+    Compare a single sequencing read to the reference. then, count up the net inserted/
     deleted sequence in the read.
     
     Args:
@@ -185,7 +184,10 @@ def extract_diffs_from_bam(
     end: int,
     min_mapq: int = 60,
 ) -> List[Tuple[int, int]]:
-    """gather information from all reads aligned to the specified region.
+    """
+    Gather information from all reads aligned to the specified region. Extract
+    the net ins/del in each read w/r/t the reference. Count up the number of reads
+    with each net ins/del value.
     
     Args:
         bam_info: Tuple of sample name and pysam.AlignmentFile object
@@ -232,6 +234,7 @@ def validate(mom_diffs, dad_diffs, child_diffs, threshold_diffs, dnm_min_reads):
         dad_diffs: List of diff_counts tuples for dad [(diff_size, read_count), ...]
         child_diffs: List of diff_counts tuples for child [(diff_size, read_count), ...]
         threshold_diffs: Threshold number of reads with the de novo allele to say that a parent definitely has it.
+    
     Returns:
         Tuple (validation_status, denovo_diff_size) where validation_status is either 'true_de_novo' or 'false_positive', and denovo_diff_size is the size of the de novo diff_count if applicable, otherwise None.
     """
@@ -281,7 +284,8 @@ def infer_repeat_motif(denovo_allele, motif_length):
    
 def process_family_candidate_variants(family, family_variants, bams, ref, threshold, dnm_min_reads, motif_period):
     """
-    process all candidate variants and print results
+    Process all candidate variants and print results
+    
     Args:
         family: family ID
         family_variants: DataFrame of candidate variants for the family
@@ -290,6 +294,7 @@ def process_family_candidate_variants(family, family_variants, bams, ref, thresh
         threshold: max allowable read evidence in a parent
         dnm_min_reads: min number of reads supporting de novo allele
         motif_period: repeat unit size to consider
+    
     Returns:
         None (writes results to output file)
     """    

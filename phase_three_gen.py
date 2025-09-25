@@ -18,6 +18,7 @@ def get_str_inheritance(
 ):
     """
     Determine which kids inherited the STR allele matching the focal individual's STR genotype?
+    
     Args:
         str_vcf (VCF): HipSTR VCF file
         chrom (str): chromosome of the str site
@@ -43,29 +44,15 @@ def get_str_inheritance(
        focal_idx = smp2idx[focal]
        focal_alleles = variant.gt_bases[focal_idx].split('|')
        
-       #debugging
-#       print(f"Focal alleles: {focal_alleles}")
-#       print(f"De novo allele: {denovo_allele_l}")
-#        print(focal_idx)
-#        focal_gt = variant.gt_types[focal_idx]
-#        print(focal_gt)
-#        print(focal_alleles)
-#        print(denovo_allele_l)
-       
        # confirm the de novo allele is one of the focal individual's alleles
        if not any(allele in focal_alleles for allele in denovo_allele_l):
            raise ValueError(f"De novo allele {denovo_allele_l} not found in focal individual's genotype: {focal_alleles}")
-       
-#        if denovo_allele not in focal_alleles:
-#            raise ValueError(f"de novo allele {denovo_allele} not found in focal individual's genotype.")
        
        #check each kid for inheritance of the de novo allele	
        for kid in kids:
            kid_idx = smp2idx[kid] # get VCF index for the child
            kid_alleles = variant.gt_bases[kid_idx].split('|')
            #compare kid's alleles to de novo allele
-           # if denovo_allele_l in kid_alleles:
-#                inherited_kids.append(kid)
            if any(allele in kid_alleles for allele in denovo_allele_l):  # Check for any overlap
                 inherited_kids.append(kid)
     
@@ -87,6 +74,22 @@ def catalog_informative_sites(
 ):
     """
     Identify informative SNPs for phasing in the specified region
+
+    Args:
+        vcf (VCF): cyvcf2 VCF object
+        region (str): Genomic region in the format "chrom:start-end"
+        mom (str): Sample ID of the mother
+        dad (str): Sample ID of the father
+        focal (str): Sample ID of the focal individual
+        focal_spouse (str): Sample ID of the focal individual's spouse
+        kids (List[str]): List of sample IDs of the children
+        kids_with_str (List[str]): List of children who inherited the STR allele
+        smp2idx (Dict[str, int]): Dictionary mapping sample IDs to VCF sample indexes.
+        min_gq (int): Minimum genotype quality to consider a site
+        min_dp (int): Minimum read depth to consider a site
+
+    Returns:
+        List[str]: List of informative SNPs in the format "chrom:pos:informative_parent:kid1-INF-Y|kid2-NON-INF-N|..."
     """
     all_smps = [mom, dad, focal, focal_spouse] + kids
     all_idxs = np.array([smp2idx[s] for s in all_smps])
@@ -124,9 +127,6 @@ def catalog_informative_sites(
             if kid in kids_with_str:
                 if informative_gt is None:
                     informative_gt = gt # set informative genotype
-#                elif informative_gt != gt:
- #                   informative_gt = None # perfect segregation is violated if a kid with DNM has a different genotype
-  #                  break
        
         if informative_gt is None:
             continue #no consistent informative genotype found
@@ -138,28 +138,10 @@ def catalog_informative_sites(
             informative_parent = "dad"
         if informative_parent is None:
             continue
-           
-
-#         informative_parent = None
-#         # figure out informative parent. as long as parental genotypes
-#         # don't match AND the kid is HET, we have an informative site.
-#         # we know for a fact that if the kid is HET, the parent with more ALTs
-#         # donated the ALT allele (e.g., if kid is 0/1, dad is 1/1, and mom is 0/1,
-#         # dad donated the 1 and mom donated the 0).
-#         if dad_gt > mom_gt:
-#             informative_parent = "dad"
-#         if mom_gt > dad_gt:
-#             informative_parent = "mom"
-#         if informative_parent is None:
-#             continue
-
 
         # loop over kids to catalog inheritance
         inf_string = []
-        for kid, gt in zip(kids, kid_gts):
-#             kid_idx = smp2idx[kid]
-#             kid_gt = v.gt_types[kid_idx]
-           
+        for kid, gt in zip(kids, kid_gts):           
             # if kid has str, has_str = "Y", otherwise has_str = "N"
             has_str = "Y" if kid in kids_with_str else "N"
             if gt == informative_gt:
@@ -177,11 +159,14 @@ def catalog_informative_sites(
 
 def check_for_dnm_inheritance(inf: str):
     """
-    Check if the informative site is relevant to the inheritance of the DNM allele
+    Check if the informative site is relevant to the inheritance of the DNM allele.
+
+    Args:
+        inf (str): Informative site string in the format "chrom:pos:informative_parent:kid1-INF-Y|kid2-NON-INF-N|..."
+    
+    Returns:
+        bool: True if any child inherited the DNM allele, False otherwise.
     """
-#     children = inf.split(":")[-1]  # Extract the children part of the string (e.g., "kid1-REF-Y|kid2-ALT-N")
-#     inherited_with_dnm = [kid.split("-")[-1] == "Y" for kid in children.split("|")]  # Check inheritance of the DNM allele
-#     return any(inherited_with_dnm)  # Return True if any child inherited the DNM allele
 
     children = inf.split(":")[-1] # Extract the children part of the string (e.g., "kid1-Y|kid2-N|kid3-Y")
     has_dnm = [kid.split("-")[-1] for kid in children.split("|")] # Extract the 'Y' or 'N' for each child
@@ -192,30 +177,24 @@ def check_for_dnm_inheritance(inf: str):
 
 def main(args):
     # Load validated DNMs
-#    print("Loading validated DNMS...")
     validated_dnms = pd.read_csv(args.validated_dnms, sep='\t')
     validated_dnms = validated_dnms[validated_dnms['validation_status'] == 'true_de_novo']
     print(validated_dnms)
     
     # load SNP VCF
-#    print("loading SNP VCF...")
     SNV_VCF = VCF(args.snv_vcf, gts012=True)
     SMP2IDX_SNV = dict(zip(SNV_VCF.samples, range(len(SNV_VCF.samples))))
     print(SMP2IDX_SNV)
-#     SMP2IDX = {sample: idx for idx, sample in enumerate(SNV_VCF.samples)}
     
     #Load STR VCF
     STR_VCF = VCF(args.str_vcf)
     SMP2IDX_STR = dict(zip(STR_VCF.samples, range(len(STR_VCF.samples))))
     
     # Load pedigree
-#    print("Loading pedigree...")
     pedigree = pd.read_csv(args.pedigree, sep='\t')
-#    print(pedigree)
     
     results = []
     
-#    print("Processing DNMS...")
     for _, row in tqdm(validated_dnms.iterrows(), total=validated_dnms.shape[0]):
         chrom = row['chrom']
         start = int(row['start']) + 1
@@ -225,11 +204,8 @@ def main(args):
         focal_type = type(focal)
         print(focal_type)
         denovo_allele = row['denovo_allele']
-#         denovo_allele = row['denovo_allele'].replace("{", "").replace("}", "").strip()
         
 
-#        test = pedigree['sample_id'] == focal
-#        print(test)
         #Extract family relationships
         family = pedigree[pedigree['sample_id'] == focal]
         print(family)
@@ -238,16 +214,6 @@ def main(args):
             continue
         	
         mom, dad = family['maternal_id'].values[0], family['paternal_id'].values[0]
-        
-        #Identify spouse of focal individual
-#        spouse = None
-#        spouse_row = pedigree[(pedigree['maternal_id'] == focal) | (pedigree['paternal_id'] == focal)]
-#        if not spouse_row.empty:
-#            spouse = spouse_row['sample_id'].values[0]
-#        print(spouse)
-#        if spouse is None or spouse not in SMP2IDX_SNV:
-#            print(f"Skipping {focal}: Spouse not found or missing in VCF")
-#            continue
                 
         # identify children of the focal individual and spouse
         kids = pedigree[(pedigree['maternal_id'] == focal) | (pedigree['paternal_id'] == focal)]['sample_id'].tolist()
@@ -294,11 +260,9 @@ def main(args):
 
         if len(informative_sites) > 0:
             relevant_phase_infos = [p for p in informative_sites if not check_for_dnm_inheritance(p)]
-#             relevant_phase_infos = [p for p in informative_sites if check_for_dnm_inheritance(p)]
             if len(relevant_phase_infos) == 0:
                 phase_result.update({"most_common_hap": "UNK", "most_common_freq": 0.0, "candidate_postzygotic": False})
             else:
-#                 inheritance_combos = Counter([":".join(p.split(":")[2:]) for p in relevant_phase_infos]).most_common()
                 inheritance_combos = Counter([":".join(p.split(":")[2:]) for p in relevant_phase_infos]).most_common()  # Keep the `REF` or `ALT` and the STR DNM info
                 most_common_hap = inheritance_combos[0][0] #returns most common haplotype
                 most_common_freq = inheritance_combos[0][1] / len(relevant_phase_infos) #count of most common haplotype divided by total number of relevant informative sites
@@ -307,19 +271,11 @@ def main(args):
                 # keep track of whether all of the children that inherited the informative
                 # allele at this site also inherited the DNM
                 is_pz = len(set(most_common_hap.split(":")[-1].split("|"))) == 2
-                
-                
-                
-#                 most_common_hap = inheritance_combos[0][0]
-#                 most_common_freq = inheritance_combos[0][1] / total_combos
-#                 most_common_children = [c.split("-")[-1] for c in most_common_hap.split(":")[-1].split("|")]
-#                 is_pz = len(set(most_common_children)) == 2
                     
                 phase_result.update({
                     "most_common_hap": most_common_hap,
                     "most_common_freq": most_common_freq,
-                    "candidate_postzygotic": is_pz,
-#                     "ref_alt_inheritance": most_common_hap
+                    "candidate_postzygotic": is_pz
                 })
         
         else:
